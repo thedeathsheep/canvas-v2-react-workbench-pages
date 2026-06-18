@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>画布多人编辑兜底演示</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #08090d;
+        --panel: rgba(28, 30, 37, 0.94);
+        --panel-soft: rgba(255, 255, 255, 0.07);
+        --line: rgba(255, 255, 255, 0.14);
+        --text: #f4f6fb;
+        --muted: #9aa3b5;
+        --dim: #6e7789;
+        --blue: #5ea2ff;
+        --purple: #8b6cff;
+        --green: #4fd49a;
+        --red: #ff8a99;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        height: 100vh;
+        overflow: hidden;
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        background:
+          radial-gradient(circle at 70% 14%, rgba(129, 96, 255, 0.16), transparent 32%),
+          radial-gradient(circle at 18% 78%, rgba(83, 154, 255, 0.12), transparent 34%),
+          var(--bg);
+      }
+
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        border: 0;
+        color: inherit;
+        cursor: pointer;
+      }
+
+      .app {
+        position: relative;
+        height: 100vh;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+
+      .topbar {
+        position: absolute;
+        z-index: 20;
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        pointer-events: none;
+      }
+
+      .left,
+      .right,
+      .mode-switch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        pointer-events: auto;
+      }
+
+      .logo,
+      .icon-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        display: grid;
+        place-items: center;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+      }
+
+      .logo {
+        color: #b8a8ff;
+        font-weight: 900;
+      }
+
+      .project {
+        height: 38px;
+        min-width: 250px;
+        padding: 0 12px;
+        border-radius: 11px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+      }
+
+      .project strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      .project span {
+        display: block;
+        margin-top: 1px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .mode-switch {
+        padding: 4px;
+        border-radius: 12px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+      }
+
+      .mode-switch button {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 8px;
+        color: var(--muted);
+        background: transparent;
+      }
+
+      .mode-switch button.active {
+        color: var(--text);
+        background: rgba(139, 108, 255, 0.28);
+      }
+
+      .presence {
+        position: relative;
+      }
+
+      .presence-button {
+        height: 38px;
+        padding: 0 13px;
+        border-radius: 11px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--green);
+        box-shadow: 0 0 0 4px rgba(79, 212, 154, 0.13);
+      }
+
+      .presence-pop {
+        position: absolute;
+        top: 46px;
+        right: 0;
+        width: 275px;
+        padding: 10px;
+        border-radius: 14px;
+        background: rgba(29, 31, 39, 0.98);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
+        transition: 0.16s ease;
+      }
+
+      .presence.open .presence-pop {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+
+      .pop-title {
+        padding: 3px 5px 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .member {
+        display: grid;
+        grid-template-columns: 32px 1fr auto;
+        gap: 9px;
+        align-items: center;
+        padding: 8px;
+        border-radius: 10px;
+      }
+
+      .member.editing {
+        background: rgba(139, 108, 255, 0.14);
+      }
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #8167ff, #56a2ff);
+        font-weight: 800;
+        font-size: 13px;
+      }
+
+      .member strong {
+        display: block;
+        font-size: 13px;
+      }
+
+      .member span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .badge {
+        padding: 5px 8px;
+        border-radius: 999px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.08);
+        font-size: 12px;
+      }
+
+      .badge.hot {
+        color: #d1c7ff;
+        background: rgba(139, 108, 255, 0.22);
+      }
+
+      .banner {
+        position: absolute;
+        z-index: 18;
+        top: 76px;
+        left: 50%;
+        width: min(680px, calc(100vw - 48px));
+        min-height: 62px;
+        transform: translateX(-50%);
+        padding: 12px 14px;
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        background: rgba(23, 25, 32, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.36);
+        backdrop-filter: blur(16px);
+      }
+
+      .banner strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      .banner span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .banner .actions {
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .btn {
+        height: 34px;
+        padding: 0 12px;
+        border-radius: 9px;
+        background: var(--panel-soft);
+        border: 1px solid var(--line);
+      }
+
+      .btn:disabled {
+        color: var(--muted);
+        cursor: default;
+        opacity: 0.72;
+      }
+
+      .btn.primary {
+        background: linear-gradient(135deg, #8067ff, #458fff);
+        border-color: transparent;
+      }
+
+      .btn.danger {
+        color: #ffdce1;
+        background: rgba(255, 138, 153, 0.13);
+        border-color: rgba(255, 138, 153, 0.32);
+      }
+
+      .canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      path {
+        fill: none;
+        stroke: rgba(104, 164, 255, 0.76);
+        stroke-width: 2.3;
+      }
+
+      path.context {
+        stroke: rgba(168, 145, 255, 0.7);
+        stroke-dasharray: 5 7;
+      }
+
+      .readonly path {
+        stroke: rgba(255, 255, 255, 0.28);
+      }
+
+      .node {
+        position: absolute;
+        width: 280px;
+        border-radius: 12px;
+        background: rgba(35, 37, 44, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.38);
+        user-select: none;
+        cursor: grab;
+      }
+
+      .readonly .node {
+        cursor: default;
+      }
+
+      .node.selected {
+        border-color: rgba(139, 108, 255, 0.95);
+        box-shadow:
+          0 0 0 1px rgba(139, 108, 255, 0.45),
+          0 18px 48px rgba(0, 0, 0, 0.42);
+      }
+
+      .node-head {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 12px 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .node h3 {
+        margin: 0;
+        padding: 0 12px;
+        font-size: 16px;
+      }
+
+      .preview {
+        height: 128px;
+        margin: 11px 12px 0;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        color: var(--dim);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .node p {
+        margin: 0;
+        padding: 10px 12px 14px;
+        color: #d8deec;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .port {
+        position: absolute;
+        top: 50%;
+        width: 22px;
+        height: 22px;
+        margin-top: -11px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: #101219;
+        border: 2px solid rgba(255, 255, 255, 0.76);
+        font-size: 18px;
+        line-height: 1;
+      }
+
+      .port.in {
+        left: -11px;
+      }
+
+      .port.out {
+        right: -11px;
+      }
+
+      .lock {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        color: #dfe5f5;
+        background: rgba(0, 0, 0, 0.55);
+        font-size: 12px;
+        opacity: 0;
+      }
+
+      .readonly .lock {
+        opacity: 1;
+      }
+
+      .dock {
+        position: absolute;
+        z-index: 17;
+        left: 50%;
+        bottom: 24px;
+        width: 620px;
+        min-height: 124px;
+        transform: translateX(-50%);
+        border-radius: 18px;
+        background: rgba(31, 33, 40, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
+        overflow: hidden;
+      }
+
+      .dock textarea {
+        width: 100%;
+        height: 70px;
+        resize: none;
+        outline: 0;
+        border: 0;
+        padding: 15px 18px 0;
+        color: var(--text);
+        background: transparent;
+      }
+
+      .dock textarea::placeholder {
+        color: var(--dim);
+      }
+
+      .dock-foot {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 14px;
+      }
+
+      .chip {
+        height: 30px;
+        padding: 0 11px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        color: #dfe5f5;
+        font-size: 13px;
+      }
+
+      .send {
+        width: 38px;
+        height: 38px;
+        margin-left: auto;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        color: #11131a;
+        background: #f5f7fb;
+        font-size: 18px;
+      }
+
+      .readonly .dock {
+        filter: saturate(0.75);
+      }
+
+      .readonly .dock::after {
+        content: "只读：不能提交 Agent";
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #e7ebf7;
+        font-size: 13px;
+        background: rgba(20, 22, 29, 0.42);
+        pointer-events: none;
+      }
+
+      .legend {
+        position: absolute;
+        z-index: 16;
+        right: 24px;
+        bottom: 24px;
+        width: 280px;
+        padding: 14px;
+        border-radius: 15px;
+        background: rgba(28, 30, 37, 0.92);
+        border: 1px solid var(--line);
+        box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+      }
+
+      .legend h3 {
+        margin: 0 0 10px;
+        font-size: 14px;
+      }
+
+      .legend div {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .legend b {
+        color: #eef2ff;
+      }
+
+      .toast {
+        position: absolute;
+        z-index: 50;
+        left: 50%;
+        bottom: 168px;
+        transform: translate(-50%, 12px);
+        opacity: 0;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: rgba(14, 16, 22, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+        color: #fff;
+        transition: 0.16s ease;
+        pointer-events: none;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+
+      @media (max-width: 980px) {
+        .mode-switch,
+        .legend {
+          display: none;
+        }
+
+        .dock {
+          width: calc(100vw - 34px);
+        }
+
+        .project {
+          min-width: 210px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="topbar">
+        <div class="left">
+          <div class="logo">S</div>
+          <div class="project">
+            <div>▣</div>
+            <div>
+              <strong>团队画布 · 兜底方案</strong>
+              <span id="saveText">你正在编辑 · 自动保存中</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mode-switch">
+          <button class="active" data-mode="mine">我编辑</button>
+          <button data-mode="other">别人编辑</button>
+          <button data-mode="stale">离线可编辑</button>
+        </div>
+
+        <div class="right">
+          <button class="icon-btn">▤</button>
+          <div class="presence" id="presence">
+            <button class="presence-button" id="presenceButton">
+              <span class="dot"></span>
+              <span id="onlineText">2 人在线</span>
+            </button>
+            <div class="presence-pop">
+              <div class="pop-title">当前进入画布的人</div>
+              <div id="memberList"></div>
+            </div>
+          </div>
+          <button class="icon-btn">⚙</button>
+        </div>
+      </header>
+
+      <section class="banner" id="banner"></section>
+
+      <main class="canvas" id="canvas">
+        <svg id="edges"></svg>
+      </main>
+
+      <section class="dock" id="dock">
+        <textarea id="input" placeholder="描述想法，从这里继续生成或调整当前节点..."></textarea>
+        <div class="dock-foot">
+          <span class="chip">Agent 模式</span>
+          <span class="chip">模型偏好</span>
+          <span class="chip">全能参考</span>
+          <button class="send" id="send">↑</button>
+        </div>
+      </section>
+
+      <aside class="legend">
+        <h3>本期只做这条规则</h3>
+        <div><span>多人进入</span><b>都能看</b></div>
+        <div><span>同时编辑</span><b>只允许 1 人</b></div>
+        <div><span>其他人操作</span><b>先拦截</b></div>
+        <div><span>兜底方式</span><b>自动只读</b></div>
+      </aside>
+
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <script>
+      const $ = (selector) => document.querySelector(selector);
+      const app = $("#app");
+      const canvas = $("#canvas");
+      const edgesEl = $("#edges");
+      const banner = $("#banner");
+      const dock = $("#dock");
+      const input = $("#input");
+      const toast = $("#toast");
+      const memberList = $("#memberList");
+      const saveText = $("#saveText");
+      const onlineText = $("#onlineText");
+
+      let mode = "mine";
+      let selected = "video";
+      let drag = null;
+
+      const nodes = [
+        {
+          id: "text",
+          type: "文本",
+          title: "文本节点 01",
+          x: 260,
+          y: 260,
+          w: 300,
+          preview: "双击编辑文字",
+          body: "作为 prompt 上下文连接到视频节点。"
+        },
+        {
+          id: "image",
+          type: "图片",
+          title: "图片节点 01",
+          x: 320,
+          y: 560,
+          w: 300,
+          img: "image-reference.jpg",
+          body: "作为图片参考连接到视频节点。"
+        },
+        {
+          id: "video",
+          type: "视频",
+          title: "视频节点 01",
+          x: 780,
+          y: 400,
+          w: 340,
+          preview: "等待视频内容",
+          body: "选中后底部 Agent 按已连接上游进入全能参考。"
+        }
+      ];
+
+      const edges = [
+        ["text", "video", "context"],
+        ["image", "video", "media"]
+      ];
+
+      function canEdit() {
+        return mode === "mine" || mode === "stale";
+      }
+
+      function render() {
+        app.classList.toggle("readonly", !canEdit());
+        dock.classList.toggle("readonly", !canEdit());
+        input.disabled = !canEdit();
+        saveText.textContent = canEdit() ? "你正在编辑 · 自动保存中" : "当前只读 · 可查看最新画布";
+        onlineText.textContent = mode === "stale" ? "1 人在线" : "2 人在线";
+        document.querySelectorAll("[data-mode]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.mode === mode);
+        });
+        renderBanner();
+        renderMembers();
+        renderCanvas();
+      }
+
+      function renderBanner() {
+        if (mode === "mine") {
+          banner.innerHTML = `
+            <div>
+              <strong>你正在编辑，其他成员只读</strong>
+              <span>其他人可以看、缩放、点节点，但不能拖拽、连线或提交 Agent。</span>
+            </div>
+          `;
+          return;
+        }
+        if (mode === "other") {
+          banner.innerHTML = `
+            <div>
+              <strong>七七正在编辑，当前自动只读</strong>
+              <span>临时兜底只做写入保护：可以查看画布，但不能拖拽、连线或提交 Agent。</span>
+            </div>
+          `;
+          return;
+        }
+        banner.innerHTML = `
+          <div>
+            <strong>编辑锁已释放，自动恢复可编辑</strong>
+            <span>编辑者离开或心跳超时后，系统自动解除只读；不出现额外操作入口。</span>
+          </div>
+        `;
+      }
+
+      function renderMembers() {
+        const rows = mode === "stale"
+          ? [{ name: "大魔术师（我）", avatar: "我", role: "正在编辑", editing: true }]
+          : [
+              { name: "大魔术师（我）", avatar: "我", role: canEdit() ? "正在编辑" : "只读查看", editing: canEdit() },
+              { name: "七七", avatar: "七", role: mode === "other" ? "正在编辑" : "只读查看", editing: mode === "other" }
+            ];
+
+        memberList.innerHTML = rows.map((row) => `
+          <div class="member ${row.editing ? "editing" : ""}">
+            <div class="avatar">${row.avatar}</div>
+            <div>
+              <strong>${row.name}</strong>
+              <span>${row.role}</span>
+            </div>
+            <div class="badge ${row.editing ? "hot" : ""}">${row.editing ? "编辑" : "只读"}</div>
+          </div>
+        `).join("");
+      }
+
+      function renderCanvas() {
+        canvas.querySelectorAll(".node").forEach((node) => node.remove());
+        nodes.forEach((node) => {
+          const el = document.createElement("article");
+          el.className = `node ${node.id === selected ? "selected" : ""}`;
+          el.dataset.id = node.id;
+          el.style.left = `${node.x}px`;
+          el.style.top = `${node.y}px`;
+          el.style.width = `${node.w}px`;
+          el.innerHTML = `
+            <button class="port in">+</button>
+            <button class="port out">+</button>
+            <div class="node-head">
+              <span>▧ ${node.type}</span>
+              <span>${canEdit() ? "可编辑" : "只读"}</span>
+            </div>
+            <h3>${node.title}</h3>
+            <div class="preview">${node.img ? `<img src="./assets/${node.img}" alt="">` : node.preview}</div>
+            <p>${node.body}</p>
+            <span class="lock">只读保护</span>
+          `;
+          canvas.appendChild(el);
+        });
+        drawEdges();
+      }
+
+      function drawEdges() {
+        edgesEl.innerHTML = "";
+        edges.forEach(([from, to, type]) => {
+          const a = nodes.find((node) => node.id === from);
+          const b = nodes.find((node) => node.id === to);
+          const sx = a.x + a.w;
+          const sy = a.y + 120;
+          const tx = b.x;
+          const ty = b.y + 120;
+          const gap = Math.max(110, Math.abs(tx - sx) / 2);
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("class", type === "context" ? "context" : "");
+          path.setAttribute("d", `M ${sx} ${sy} C ${sx + gap} ${sy}, ${tx - gap} ${ty}, ${tx} ${ty}`);
+          edgesEl.appendChild(path);
+        });
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add("show");
+        clearTimeout(showToast.timer);
+        showToast.timer = setTimeout(() => toast.classList.remove("show"), 2300);
+      }
+
+      function block(action) {
+        showToast(`当前只读，不能${action}。编辑锁释放后会自动恢复。`);
+      }
+
+      document.addEventListener("click", (event) => {
+        const modeButton = event.target.closest("[data-mode]");
+        if (modeButton) {
+          mode = modeButton.dataset.mode;
+          render();
+          return;
+        }
+
+        if (event.target.closest(".port")) {
+          if (!canEdit()) block("创建连线");
+          else showToast("进入连线模式。");
+          return;
+        }
+
+        const node = event.target.closest(".node");
+        if (node) {
+          selected = node.dataset.id;
+          renderCanvas();
+        }
+      });
+
+      $("#presenceButton").addEventListener("click", () => {
+        $("#presence").classList.toggle("open");
+      });
+
+      $("#send").addEventListener("click", () => {
+        if (!canEdit()) block("提交 Agent");
+        else showToast("已提交，后续操作以你作为当前编辑者写入。");
+      });
+
+      canvas.addEventListener("pointerdown", (event) => {
+        const nodeEl = event.target.closest(".node");
+        if (!nodeEl || event.target.closest("button")) return;
+        const node = nodes.find((item) => item.id === nodeEl.dataset.id);
+        selected = node.id;
+        renderCanvas();
+        if (!canEdit()) {
+          block("拖拽节点");
+          return;
+        }
+        drag = {
+          node,
+          startX: event.clientX,
+          startY: event.clientY,
+          originX: node.x,
+          originY: node.y
+        };
+        nodeEl.setPointerCapture(event.pointerId);
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        if (!drag) return;
+        drag.node.x = drag.originX + event.clientX - drag.startX;
+        drag.node.y = drag.originY + event.clientY - drag.startY;
+        renderCanvas();
+      });
+
+      canvas.addEventListener("pointerup", () => {
+        if (!drag) return;
+        drag = null;
+        showToast("节点位置已保存。");
+      });
+
+      canvas.addEventListener("dblclick", () => {
+        if (!canEdit()) block("编辑节点");
+        else showToast("进入节点编辑态。");
+      });
+
+      app.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        if (!canEdit()) block("使用右键编辑菜单");
+        else showToast(event.target.closest(".node") ? "打开节点菜单。" : "打开画布菜单。");
+      });
+
+      render();
+    </script>
+  </body>
+</html>
