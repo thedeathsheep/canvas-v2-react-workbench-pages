@@ -241,6 +241,16 @@
         background: rgba(139, 108, 255, 0.22);
       }
 
+      .mini-btn {
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 8px;
+        background: rgba(139, 108, 255, 0.28);
+        border: 1px solid rgba(139, 108, 255, 0.52);
+        font-size: 12px;
+      }
+
+
       .banner {
         position: absolute;
         z-index: 18;
@@ -633,10 +643,11 @@
 
       <aside class="legend">
         <h3>本期只做这条规则</h3>
+        <div><span>判断依据</span><b>有效编辑锁</b></div>
         <div><span>多人进入</span><b>都能看</b></div>
         <div><span>同时编辑</span><b>只允许 1 人</b></div>
         <div><span>其他人操作</span><b>先拦截</b></div>
-        <div><span>兜底方式</span><b>自动只读</b></div>
+        <div><span>需要编辑</span><b>请求转让</b></div>
       </aside>
 
       <div class="toast" id="toast"></div>
@@ -654,10 +665,19 @@
       const memberList = $("#memberList");
       const saveText = $("#saveText");
       const onlineText = $("#onlineText");
+      const presence = $("#presence");
 
       let mode = "mine";
+      let editor = "me";
+      let editRequests = ["ning"];
       let selected = "video";
       let drag = null;
+
+      const people = {
+        me: { name: "大魔术师（我）", avatar: "我" },
+        qiqi: { name: "七七", avatar: "七" },
+        ning: { name: "阿宁", avatar: "宁" }
+      };
 
       const nodes = [
         {
@@ -698,7 +718,7 @@
       ];
 
       function canEdit() {
-        return mode === "mine" || mode === "stale";
+        return editor === "me";
       }
 
       function render() {
@@ -706,7 +726,7 @@
         dock.classList.toggle("readonly", !canEdit());
         input.disabled = !canEdit();
         saveText.textContent = canEdit() ? "你正在编辑 · 自动保存中" : "当前只读 · 可查看最新画布";
-        onlineText.textContent = mode === "stale" ? "1 人在线" : "2 人在线";
+        onlineText.textContent = mode === "stale" ? "1 人在线" : "3 人在线";
         document.querySelectorAll("[data-mode]").forEach((button) => {
           button.classList.toggle("active", button.dataset.mode === mode);
         });
@@ -716,50 +736,58 @@
       }
 
       function renderBanner() {
-        if (mode === "mine") {
+        if (canEdit()) {
           banner.innerHTML = `
             <div>
               <strong>你正在编辑，其他成员只读</strong>
-              <span>其他人可以看、缩放、点节点，但不能拖拽、连线或提交 Agent。</span>
+              <span>有人请求编辑时，只在在线列表提示；你点“同意”后才转让编辑权。</span>
             </div>
           `;
           return;
         }
         if (mode === "other") {
+          const alreadyRequested = editRequests.includes("me");
           banner.innerHTML = `
             <div>
-              <strong>七七正在编辑，当前自动只读</strong>
-              <span>临时兜底只做写入保护：可以查看画布，但不能拖拽、连线或提交 Agent。</span>
+              <strong>${people[editor].name.replace("（我）", "")}正在编辑，当前只读</strong>
+              <span>${alreadyRequested ? "已请求编辑，等待对方在在线列表中同意。" : "需要修改时点“请求编辑”，系统只做编辑权转让提醒。"}</span>
             </div>
+            ${alreadyRequested ? "" : `
+              <div class="actions">
+                <button class="btn primary" data-action="request-edit">请求编辑</button>
+              </div>
+            `}
           `;
           return;
         }
         banner.innerHTML = `
           <div>
             <strong>编辑锁已释放，自动恢复可编辑</strong>
-            <span>编辑者离开或心跳超时后，系统自动解除只读；不出现额外操作入口。</span>
+            <span>编辑者离开或心跳超时后，系统自动解除只读；已有请求继续保留在在线列表。</span>
           </div>
         `;
       }
 
       function renderMembers() {
-        const rows = mode === "stale"
-          ? [{ name: "大魔术师（我）", avatar: "我", role: "正在编辑", editing: true }]
-          : [
-              { name: "大魔术师（我）", avatar: "我", role: canEdit() ? "正在编辑" : "只读查看", editing: canEdit() },
-              { name: "七七", avatar: "七", role: mode === "other" ? "正在编辑" : "只读查看", editing: mode === "other" }
-            ];
-
-        memberList.innerHTML = rows.map((row) => `
-          <div class="member ${row.editing ? "editing" : ""}">
-            <div class="avatar">${row.avatar}</div>
+        const onlineIds = mode === "stale" ? ["me"] : ["me", "qiqi", "ning"];
+        memberList.innerHTML = onlineIds.map((id) => {
+          const isEditing = id === editor;
+          const isRequesting = editRequests.includes(id);
+          const canApprove = canEdit() && isRequesting && !isEditing;
+          const actionHtml = canApprove
+            ? `<button class="mini-btn" data-action="approve-request" data-user="${id}">同意</button>`
+            : `<div class="badge ${isEditing ? "hot" : ""}">${isEditing ? "编辑" : isRequesting ? "请求" : "只读"}</div>`;
+          return `
+          <div class="member ${isEditing ? "editing" : ""}">
+            <div class="avatar">${people[id].avatar}</div>
             <div>
-              <strong>${row.name}</strong>
-              <span>${row.role}</span>
+              <strong>${people[id].name}</strong>
+              <span>${isEditing ? "正在编辑" : isRequesting ? "已请求编辑" : "只读查看"}</span>
             </div>
-            <div class="badge ${row.editing ? "hot" : ""}">${row.editing ? "编辑" : "只读"}</div>
+            ${actionHtml}
           </div>
-        `).join("");
+        `;
+        }).join("");
       }
 
       function renderCanvas() {
@@ -813,14 +841,39 @@
       }
 
       function block(action) {
-        showToast(`当前只读，不能${action}。编辑锁释放后会自动恢复。`);
+        showToast(`当前只读，不能${action}。需要修改时先请求编辑。`);
       }
 
       document.addEventListener("click", (event) => {
         const modeButton = event.target.closest("[data-mode]");
         if (modeButton) {
           mode = modeButton.dataset.mode;
+          editor = mode === "other" ? "qiqi" : "me";
+          if (mode === "stale" && !editRequests.includes("ning")) {
+            editRequests.push("ning");
+          }
           render();
+          return;
+        }
+
+        const action = event.target.closest("[data-action]")?.dataset.action;
+        if (action === "request-edit") {
+          if (!editRequests.includes("me")) editRequests.unshift("me");
+          presence.classList.add("open");
+          render();
+          showToast("已发送请求，在线列表会持续显示，不会自动清掉。");
+          return;
+        }
+
+        if (action === "approve-request") {
+          const targetUser = event.target.closest("[data-user]")?.dataset.user;
+          if (!targetUser) return;
+          editor = targetUser;
+          mode = targetUser === "me" ? "mine" : "other";
+          editRequests = editRequests.filter((id) => id !== targetUser);
+          presence.classList.add("open");
+          render();
+          showToast(`已转让给${people[targetUser].name.replace("（我）", "")}，其他请求继续保留。`);
           return;
         }
 
