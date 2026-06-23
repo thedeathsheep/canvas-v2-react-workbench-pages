@@ -480,21 +480,37 @@
       .dock {
         position: absolute;
         z-index: 17;
-        left: 50%;
-        bottom: 24px;
-        width: 620px;
-        min-height: 124px;
-        transform: translateX(-50%);
-        border-radius: 18px;
+        left: 0;
+        top: 0;
+        width: 560px;
+        min-height: 112px;
+        transform: none;
+        border-radius: 16px;
         background: rgba(31, 33, 40, 0.95);
         border: 1px solid rgba(255, 255, 255, 0.18);
         box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
         overflow: hidden;
+        transition:
+          left 0.16s ease,
+          top 0.16s ease;
+      }
+
+      .dock::before {
+        content: "";
+        position: absolute;
+        top: -7px;
+        left: 50%;
+        width: 14px;
+        height: 14px;
+        transform: translateX(-50%) rotate(45deg);
+        background: rgba(31, 33, 40, 0.95);
+        border-left: 1px solid rgba(255, 255, 255, 0.18);
+        border-top: 1px solid rgba(255, 255, 255, 0.18);
       }
 
       .dock textarea {
         width: 100%;
-        height: 70px;
+        height: 62px;
         resize: none;
         outline: 0;
         border: 0;
@@ -508,7 +524,7 @@
       }
 
       .dock-foot {
-        height: 52px;
+        height: 48px;
         display: flex;
         align-items: center;
         gap: 9px;
@@ -615,7 +631,7 @@
                 <ul>
                   <li>同一画布同一时刻只有 1 人可编辑。</li>
                   <li>其他成员可查看，写入操作不会生效。</li>
-                  <li>5 分钟没有有效编辑操作后自动释放。</li>
+                  <li>5 分钟没有编辑操作后自动释放。</li>
                   <li>需要继续编辑时请求编辑，由当前编辑者同意后转交。</li>
                 </ul>
               </div>
@@ -702,7 +718,7 @@
           y: 400,
           w: 340,
           preview: "等待视频内容",
-          body: "选中后底部 Agent 按已连接上游进入全能参考。"
+          body: "选中后节点下方出现 Agent，按已连接上游进入全能参考。"
         }
       ];
 
@@ -728,6 +744,7 @@
         renderHelp();
         renderMembers();
         renderCanvas();
+        positionDock();
       }
 
       function renderHelp() {
@@ -807,6 +824,27 @@
           canvas.appendChild(el);
         });
         drawEdges();
+        positionDock();
+      }
+
+      function positionDock() {
+        if (!canEdit()) return;
+        const selectedEl = canvas.querySelector(`.node[data-id="${selected}"]`);
+        if (!selectedEl) return;
+        const appRect = app.getBoundingClientRect();
+        const nodeRect = selectedEl.getBoundingClientRect();
+        const dockWidth = dock.offsetWidth || 560;
+        const dockHeight = dock.offsetHeight || 112;
+        const left = Math.min(
+          Math.max(24, nodeRect.left - appRect.left + (nodeRect.width - dockWidth) / 2),
+          window.innerWidth - dockWidth - 24
+        );
+        const top = Math.min(
+          nodeRect.bottom - appRect.top + 14,
+          window.innerHeight - dockHeight - 24
+        );
+        dock.style.left = `${left}px`;
+        dock.style.top = `${Math.max(82, top)}px`;
       }
 
       function drawEdges() {
